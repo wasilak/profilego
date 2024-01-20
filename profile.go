@@ -33,7 +33,7 @@ func Init(config ProfileGoConfig, additionalAttrs ...any) error {
 	}
 
 	if defaultConfig.ServerAddress == "" {
-		return errors.New("srver address name not provided (ServerAddress)")
+		return errors.New("server address name not provided (ServerAddress)")
 	}
 
 	if defaultConfig.Type == "pyroscope" {
