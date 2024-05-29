@@ -1,8 +1,6 @@
 module github.com/wasilak/profilego
 
-go 1.21.0
-
-toolchain go1.21.6
+go 1.22
 
 require (
 	dario.cat/mergo v1.0.0
