@@ -7,21 +7,21 @@ import (
 	"github.com/grafana/pyroscope-go"
 )
 
-type ProfileGoConfig struct {
-	ApplicationName string
-	ServerAddress   string
-	Type            string
-	Tags            map[string]string
+type Config struct {
+	ApplicationName string            `json:"application_name"` // ApplicationName specifies the name of the application.
+	ServerAddress   string            `json:"server_address"`   // ServerAddress specifies the address of the profiling server.
+	Type            string            `json:"type"`             // Type specifies the type of profiler. Valid values are "pyroscope".
+	Tags            map[string]string `json:"tags"`             // Tags specifies the tags to be added to the profiler.
 }
 
-var defaultConfig = ProfileGoConfig{
-	ApplicationName: "",
-	ServerAddress:   "",
+var defaultConfig = Config{
+	ApplicationName: "my-app",
+	ServerAddress:   "127.0.0.1:4040",
 	Type:            "pyroscope",
 	Tags:            map[string]string{},
 }
 
-func Init(config ProfileGoConfig, additionalAttrs ...any) error {
+func Init(config Config, additionalAttrs ...any) error {
 
 	err := mergo.Merge(&defaultConfig, config, mergo.WithOverride)
 	if err != nil {
@@ -49,7 +49,7 @@ func Init(config ProfileGoConfig, additionalAttrs ...any) error {
 
 }
 
-func initPyroscope(config ProfileGoConfig) (*pyroscope.Profiler, error) {
+func initPyroscope(config Config) (*pyroscope.Profiler, error) {
 	profiler, err := pyroscope.Start(pyroscope.Config{
 		Logger:          ProfilingLogger{},
 		ApplicationName: config.ApplicationName,
