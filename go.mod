@@ -4,7 +4,7 @@ go 1.24
 
 require (
 	dario.cat/mergo v1.0.1
-	github.com/grafana/pyroscope-go v1.2.1
+	github.com/grafana/pyroscope-go v1.2.2
 )
 
 require (
