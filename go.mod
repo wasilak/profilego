@@ -3,7 +3,7 @@ module github.com/wasilak/profilego
 go 1.24
 
 require (
-	dario.cat/mergo v1.0.1
+	dario.cat/mergo v1.0.2
 	github.com/grafana/pyroscope-go v1.2.1
 )
 
