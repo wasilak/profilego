@@ -1,12 +1,18 @@
 package profilego
 
 import (
+	"context"
 	"errors"
 
 	"dario.cat/mergo"
-	"github.com/grafana/pyroscope-go"
+
+	"github.com/wasilak/profilego/config"
+	"github.com/wasilak/profilego/core"
+	"github.com/wasilak/profilego/manager"
+	"github.com/wasilak/profilego/profiler"
 )
 
+// Legacy Config struct for backward compatibility
 type Config struct {
 	ApplicationName string            `json:"application_name"` // ApplicationName specifies the name of the application.
 	ServerAddress   string            `json:"server_address"`   // ServerAddress specifies the address of the profiling server.
@@ -21,64 +27,103 @@ var defaultConfig = Config{
 	Tags:            map[string]string{},
 }
 
+// Legacy Init function for backward compatibility
 func Init(config Config, additionalAttrs ...any) error {
+	// Convert legacy config to new format
+	newConfig := config.toNewConfig()
 
-	err := mergo.Merge(&defaultConfig, config, mergo.WithOverride)
+	// Add additional attributes
+	newConfig.AdditionalAttrs = additionalAttrs
+
+	return InitWithConfig(newConfig)
+}
+
+// toNewConfig converts the legacy config to the new format
+func (c Config) toNewConfig() config.Config {
+	// Determine backend type based on the legacy type field
+	backendType := config.PyroscopeBackend
+	if c.Type == "pprof" {
+		backendType = config.PprofBackend
+	}
+
+	return config.Config{
+		ApplicationName: c.ApplicationName,
+		ServerAddress:   c.ServerAddress,
+		Backend:         backendType,
+		Tags:            c.Tags,
+		ProfileTypes: []core.ProfileType{
+			core.ProfileCPU,
+			core.ProfileAllocObjects,
+			core.ProfileAllocSpace,
+			core.ProfileInuseObjects,
+			core.ProfileInuseSpace,
+			core.ProfileGoroutines,
+			core.ProfileMutexCount,
+			core.ProfileMutexDuration,
+			core.ProfileBlockCount,
+			core.ProfileBlockDuration,
+		},
+		InitialState: core.ProfilingEnabled,
+	}
+}
+
+// profilerManager is the global profiler manager instance
+var profilerManager *manager.ProfilerManager
+
+// InitWithConfig initializes profiling with the new configuration format
+func InitWithConfig(cfg config.Config) error {
+	// Merge provided config with defaults
+	err := mergo.Merge(&cfg, config.DefaultConfig, mergo.WithOverride)
 	if err != nil {
 		return err
 	}
 
-	if defaultConfig.ApplicationName == "" {
-		return errors.New("application name not provided (ApplicationName)")
-	}
+	profilerManager = manager.NewProfilerManager(cfg)
 
-	if defaultConfig.ServerAddress == "" {
-		return errors.New("server address name not provided (ServerAddress)")
-	}
-
-	if defaultConfig.Type == "pyroscope" {
-		_, err := initPyroscope(defaultConfig)
+	// Create and add the appropriate profiler
+	var profiler core.Profiler
+	switch cfg.Backend {
+	case config.PyroscopeBackend:
+		profiler, err = profiler.NewPyroscopeProfiler(cfg)
 		if err != nil {
 			return err
 		}
-
-		return nil
+	case config.PprofBackend:
+		profiler, err = profiler.NewPprofProfiler(cfg)
+		if err != nil {
+			return err
+		}
+	default:
+		return errors.New("unsupported backend type: " + string(cfg.Backend))
 	}
 
-	return errors.New("profiler type not provided (Type)")
+	if err := profilerManager.AddProfiler(profiler); err != nil {
+		return err
+	}
 
+	return profilerManager.Init()
 }
 
-func initPyroscope(config Config) (*pyroscope.Profiler, error) {
-	profiler, err := pyroscope.Start(pyroscope.Config{
-		Logger:          ProfilingLogger{},
-		ApplicationName: config.ApplicationName,
-
-		// replace this with the address of pyroscope server
-		ServerAddress: config.ServerAddress,
-
-		// you can provide static tags via a map:
-		Tags: config.Tags,
-
-		ProfileTypes: []pyroscope.ProfileType{
-			// these profile types are enabled by default:
-			pyroscope.ProfileCPU,
-			pyroscope.ProfileAllocObjects,
-			pyroscope.ProfileAllocSpace,
-			pyroscope.ProfileInuseObjects,
-			pyroscope.ProfileInuseSpace,
-
-			// these profile types are optional:
-			pyroscope.ProfileGoroutines,
-			pyroscope.ProfileMutexCount,
-			pyroscope.ProfileMutexDuration,
-			pyroscope.ProfileBlockCount,
-			pyroscope.ProfileBlockDuration,
-		},
-	})
-	if err != nil {
-		return nil, err
+// Stop stops profiling gracefully
+func Stop() error {
+	if profilerManager != nil {
+		return profilerManager.Stop()
 	}
+	return nil
+}
 
-	return profiler, nil
+// IsRunning returns whether profiling is currently active
+func IsRunning() bool {
+	if profilerManager != nil {
+		return profilerManager.IsRunning()
+	}
+	return false
+}
+
+// Start profiling if not already running
+func Start() error {
+	if profilerManager != nil {
+		return profilerManager.Start()
+	}
+	return errors.New("profiler not initialized")
 }
