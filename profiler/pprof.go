@@ -76,7 +76,7 @@ func (pp *PprofProfiler) Start(ctx context.Context) error {
 			}
 		case core.ProfileGoroutines:
 			// Goroutine profiling is ongoing, no need to start
-			slog.InfoContext(ctx, "Goroutine profiling is ongoing")
+			slog.DebugContext(ctx, "Goroutine profiling is ongoing")
 		case core.ProfileMutexCount, core.ProfileMutexDuration:
 			runtime.SetMutexProfileFraction(1) // Enable mutex profiling
 		case core.ProfileBlockCount, core.ProfileBlockDuration:

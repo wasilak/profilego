@@ -37,7 +37,8 @@ func (p ProfilingLogger) handleMessage(msg string) string {
 
 // For backward compatibility with pyroscope library, implement the original methods using context functions
 func (p ProfilingLogger) Infof(msg string, params ...interface{}) {
-	p.InfoContext(context.Background(), msg, params...)
+	// As a library, use debug level to avoid polluting application logs
+	p.DebugContext(context.Background(), msg, params...)
 }
 
 func (p ProfilingLogger) Debugf(msg string, params ...interface{}) {

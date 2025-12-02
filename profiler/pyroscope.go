@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"strings"
 	"sync"
 
-	"dario.cat/mergo"
 	"github.com/grafana/pyroscope-go"
 
 	"github.com/wasilak/profilego/config"
@@ -21,19 +21,34 @@ type pyroscopeLogger struct{}
 // Infof implements the pyroscope logger interface
 func (l pyroscopeLogger) Infof(msg string, params ...interface{}) {
 	message := l.handleMessage(msg)
-	slog.Info(message, params...)
+	// As a library, use debug level to avoid polluting application logs
+	// Pyroscope library passes params in a format incompatible with slog
+	// Convert to a simple formatted message to avoid slog errors
+	if len(params) > 0 {
+		slog.Debug(fmt.Sprintf(message+" %v", params))
+	} else {
+		slog.Debug(message)
+	}
 }
 
 // Debugf implements the pyroscope logger interface
 func (l pyroscopeLogger) Debugf(msg string, params ...interface{}) {
 	message := l.handleMessage(msg)
-	slog.Debug(message, params...)
+	if len(params) > 0 {
+		slog.Debug(fmt.Sprintf(message+" %v", params))
+	} else {
+		slog.Debug(message)
+	}
 }
 
 // Errorf implements the pyroscope logger interface
 func (l pyroscopeLogger) Errorf(msg string, params ...interface{}) {
 	message := l.handleMessage(msg)
-	slog.Error(message, params...)
+	if len(params) > 0 {
+		slog.Error(fmt.Sprintf(message+" %v", params))
+	} else {
+		slog.Error(message)
+	}
 }
 
 // handleMessage formats the log message
@@ -41,6 +56,35 @@ func (l pyroscopeLogger) handleMessage(msg string) string {
 	message := strings.TrimSpace(msg)
 	messageElements := strings.Split(message, ":")
 	return fmt.Sprintf("profilego - %s", messageElements[0])
+}
+
+// formatServerAddressAsURL formats a server address as a proper URL
+// If the address is already a valid URL, it returns it as-is
+// If the address is just a host:port, it adds the http:// scheme
+func formatServerAddressAsURL(serverAddress string) (string, error) {
+	// First, try to parse as URL to see if it's already valid
+	parsedURL, err := url.Parse(serverAddress)
+	if err == nil && parsedURL.Scheme != "" {
+		// Already a valid URL
+		return serverAddress, nil
+	}
+
+	// If parsing failed or no scheme, try to add http:// scheme
+	httpURL := "http://" + serverAddress
+	_, err = url.Parse(httpURL)
+	if err == nil {
+		return httpURL, nil
+	}
+
+	// If that also fails, try https://
+	httpsURL := "https://" + serverAddress
+	_, err = url.Parse(httpsURL)
+	if err == nil {
+		return httpsURL, nil
+	}
+
+	// If all attempts fail, return the original and let Pyroscope handle it
+	return serverAddress, fmt.Errorf("failed to format server address as URL: %s", serverAddress)
 }
 
 // PyroscopeProfiler implements the Profiler interface for Pyroscope
@@ -53,14 +97,8 @@ type PyroscopeProfiler struct {
 
 // NewPyroscopeProfiler creates a new Pyroscope profiler
 func NewPyroscopeProfiler(cfg config.Config) (*PyroscopeProfiler, error) {
-	// Start with defaults
-	finalConfig := config.DefaultConfig
-
-	// Then merge provided config values (they take precedence)
-	err := mergo.Merge(&finalConfig, cfg, mergo.WithOverride)
-	if err != nil {
-		return nil, err
-	}
+	// Use the config as-is (merging should be handled at the InitWithConfig level)
+	finalConfig := cfg
 
 	pp := &PyroscopeProfiler{
 		config: finalConfig,
@@ -99,10 +137,16 @@ func (pp *PyroscopeProfiler) Start(ctx context.Context) error {
 		}
 	}
 
+	// Format server address as proper URL for Pyroscope library
+	formattedServerAddress, err := formatServerAddressAsURL(pp.config.ServerAddress)
+	if err != nil {
+		return fmt.Errorf("failed to format server address: %w", err)
+	}
+
 	pyroscopeConfig := pyroscope.Config{
 		Logger:          pyroscopeLogger{}, // Use logger specifically for pyroscope
 		ApplicationName: pp.config.ApplicationName,
-		ServerAddress:   pp.config.ServerAddress,
+		ServerAddress:   formattedServerAddress,
 		Tags:            pp.config.Tags,
 		ProfileTypes:    profileTypes,
 	}

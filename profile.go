@@ -3,7 +3,6 @@ package profilego
 import (
 	"errors"
 
-	"dario.cat/mergo"
 	"github.com/go-playground/validator/v10"
 
 	"github.com/wasilak/profilego/config"
@@ -75,16 +74,14 @@ var profilerManager *manager.ProfilerManager
 
 // InitWithConfig initializes profiling with the new configuration format
 func InitWithConfig(cfg config.Config) error {
-	// Merge provided config with defaults
-	err := mergo.Merge(&cfg, config.DefaultConfig, mergo.WithOverride)
-	if err != nil {
-		return err
-	}
+	// Use the configuration as provided by the user
+	// If they want defaults, they should provide them explicitly
 
 	profilerManager = manager.NewProfilerManager(cfg)
 
 	// Create and add the appropriate profiler
 	var profiler core.Profiler
+	var err error
 	switch cfg.Backend {
 	case core.PyroscopeBackend:
 		profiler, err = profiler_pkg.NewPyroscopeProfiler(cfg)
