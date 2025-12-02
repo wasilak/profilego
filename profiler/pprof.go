@@ -2,37 +2,43 @@ package profiler
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"runtime"
 	"runtime/pprof"
 	"sync"
 	"time"
 
+	"dario.cat/mergo"
 	"github.com/wasilak/profilego/config"
 	"github.com/wasilak/profilego/core"
 	"github.com/wasilak/profilego/internal/memory"
-	"github.com/wasilak/profilego/profilingLogger"
 )
 
 // PprofProfiler implements the Profiler interface for pprof
 type PprofProfiler struct {
-	mu        sync.RWMutex
-	config    config.Config
-	running   bool
-	logger    profilingLogger.ProfilingLogger
-	stopCh    chan struct{}
+	mu      sync.RWMutex
+	config  config.Config
+	running bool
+	stopCh  chan struct{}
 }
 
 // NewPprofProfiler creates a new pprof profiler
 func NewPprofProfiler(cfg config.Config) (*PprofProfiler, error) {
-	logger := profilingLogger.ProfilingLogger{}
-	
+	// Start with defaults
+	finalConfig := config.DefaultConfig
+
+	// Then merge provided config values (they take precedence)
+	err := mergo.Merge(&finalConfig, cfg, mergo.WithOverride)
+	if err != nil {
+		return nil, err
+	}
+
 	pp := &PprofProfiler{
-		config: cfg,
-		logger: logger,
+		config: finalConfig,
 		stopCh: make(chan struct{}),
 	}
-	
+
 	return pp, nil
 }
 
@@ -60,7 +66,7 @@ func (pp *PprofProfiler) Start(ctx context.Context) error {
 	// Start profiling based on configured profile types
 	for _, profileType := range pp.config.ProfileTypes {
 		switch profileType {
-		case config.ProfileCPU:
+		case core.ProfileCPU:
 			f, err := os.Create(pp.config.ApplicationName + "_cpu.pprof")
 			if err != nil {
 				return err
@@ -68,12 +74,12 @@ func (pp *PprofProfiler) Start(ctx context.Context) error {
 			if err := pprof.StartCPUProfile(f); err != nil {
 				return err
 			}
-		case config.ProfileGoroutines:
+		case core.ProfileGoroutines:
 			// Goroutine profiling is ongoing, no need to start
-			pp.logger.InfoContext(ctx, "Goroutine profiling is ongoing")
-		case config.ProfileMutexCount, config.ProfileMutexDuration:
+			slog.InfoContext(ctx, "Goroutine profiling is ongoing")
+		case core.ProfileMutexCount, core.ProfileMutexDuration:
 			runtime.SetMutexProfileFraction(1) // Enable mutex profiling
-		case config.ProfileBlockCount, config.ProfileBlockDuration:
+		case core.ProfileBlockCount, core.ProfileBlockDuration:
 			runtime.SetBlockProfileRate(1) // Enable block profiling
 		}
 	}
@@ -90,26 +96,26 @@ func (pp *PprofProfiler) Start(ctx context.Context) error {
 func (pp *PprofProfiler) Stop(ctx context.Context) error {
 	pp.mu.Lock()
 	defer pp.mu.Unlock()
-	
+
 	if !pp.running {
 		return nil
 	}
-	
+
 	// Stop profiling based on configured profile types
 	for _, profileType := range pp.config.ProfileTypes {
 		switch profileType {
-		case config.ProfileCPU:
+		case core.ProfileCPU:
 			pprof.StopCPUProfile()
-		case config.ProfileMutexCount, config.ProfileMutexDuration:
+		case core.ProfileMutexCount, core.ProfileMutexDuration:
 			runtime.SetMutexProfileFraction(0) // Disable mutex profiling
-		case config.ProfileBlockCount, config.ProfileBlockDuration:
+		case core.ProfileBlockCount, core.ProfileBlockDuration:
 			runtime.SetBlockProfileRate(0) // Disable block profiling
 		}
 	}
-	
+
 	// Notify the profile loop to stop
 	close(pp.stopCh)
-	
+
 	pp.running = false
 	return nil
 }
@@ -118,18 +124,18 @@ func (pp *PprofProfiler) Stop(ctx context.Context) error {
 func (pp *PprofProfiler) Pause(ctx context.Context) error {
 	pp.mu.Lock()
 	defer pp.mu.Unlock()
-	
+
 	if !pp.running {
 		return nil
 	}
-	
+
 	// Stop only CPU profiling during pause
 	for _, profileType := range pp.config.ProfileTypes {
-		if profileType == config.ProfileCPU {
+		if profileType == core.ProfileCPU {
 			pprof.StopCPUProfile()
 		}
 	}
-	
+
 	pp.running = false
 	return nil
 }
@@ -150,7 +156,7 @@ func (pp *PprofProfiler) IsRunning() bool {
 func (pp *PprofProfiler) profileLoop() {
 	ticker := time.NewTicker(10 * time.Second) // Profile every 10 seconds
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:

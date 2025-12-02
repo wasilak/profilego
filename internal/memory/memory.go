@@ -9,19 +9,19 @@ import (
 
 // MemoryMonitor provides memory monitoring capabilities
 type MemoryMonitor struct {
-	mu          sync.RWMutex
-	limitMB     int64
-	monitoring  bool
-	stopCh      chan struct{}
-	usageFunc   func() uint64 // Function to get current memory usage in bytes
+	mu         sync.RWMutex
+	limitMB    int64
+	monitoring bool
+	stopCh     chan struct{}
+	usageFunc  func() uint64 // Function to get current memory usage in bytes
 }
 
 // NewMemoryMonitor creates a new memory monitor with the specified limit in MB
 func NewMemoryMonitor(limitMB int64) *MemoryMonitor {
 	return &MemoryMonitor{
-		limitMB:    limitMB,
-		stopCh:     make(chan struct{}),
-		usageFunc:  getCurrentMemoryUsage,
+		limitMB:   limitMB,
+		stopCh:    make(chan struct{}),
+		usageFunc: getCurrentMemoryUsage,
 	}
 }
 
@@ -29,11 +29,11 @@ func NewMemoryMonitor(limitMB int64) *MemoryMonitor {
 func (mm *MemoryMonitor) Start() {
 	mm.mu.Lock()
 	defer mm.mu.Unlock()
-	
+
 	if mm.monitoring {
 		return
 	}
-	
+
 	mm.monitoring = true
 	go mm.monitorLoop()
 }
@@ -42,11 +42,11 @@ func (mm *MemoryMonitor) Start() {
 func (mm *MemoryMonitor) Stop() {
 	mm.mu.Lock()
 	defer mm.mu.Unlock()
-	
+
 	if !mm.monitoring {
 		return
 	}
-	
+
 	close(mm.stopCh)
 	mm.monitoring = false
 }
@@ -55,20 +55,20 @@ func (mm *MemoryMonitor) Stop() {
 func (mm *MemoryMonitor) IsWithinLimit() bool {
 	mm.mu.RLock()
 	defer mm.mu.RUnlock()
-	
+
 	if mm.limitMB <= 0 {
 		return true // No limit set
 	}
-	
+
 	currentMB := mm.getCurrentMemoryMB()
-	return currentMB <= mm.limitMB
+	return currentMB <= float64(mm.limitMB)
 }
 
 // GetMemoryUsage returns current memory usage in MB
 func (mm *MemoryMonitor) GetMemoryUsage() float64 {
 	mm.mu.RLock()
 	defer mm.mu.RUnlock()
-	
+
 	return mm.getCurrentMemoryMB()
 }
 
@@ -76,7 +76,7 @@ func (mm *MemoryMonitor) GetMemoryUsage() float64 {
 func (mm *MemoryMonitor) GetMemoryLimit() int64 {
 	mm.mu.RLock()
 	defer mm.mu.RUnlock()
-	
+
 	return mm.limitMB
 }
 
@@ -84,7 +84,7 @@ func (mm *MemoryMonitor) GetMemoryLimit() int64 {
 func (mm *MemoryMonitor) SetLimit(limitMB int64) {
 	mm.mu.Lock()
 	defer mm.mu.Unlock()
-	
+
 	mm.limitMB = limitMB
 }
 
@@ -98,7 +98,7 @@ func (mm *MemoryMonitor) getCurrentMemoryMB() float64 {
 func (mm *MemoryMonitor) monitorLoop() {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:
@@ -124,9 +124,9 @@ func getCurrentMemoryUsage() uint64 {
 func CheckMemoryLimit(limitMB int64) error {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	
+
 	currentMB := float64(m.Sys) / (1024 * 1024)
-	
+
 	if currentMB > float64(limitMB) {
 		return &MemoryError{
 			CurrentMB: currentMB,
@@ -134,7 +134,7 @@ func CheckMemoryLimit(limitMB int64) error {
 			Message:   fmt.Sprintf("memory usage %.2f MB exceeds limit of %.2f MB", currentMB, float64(limitMB)),
 		}
 	}
-	
+
 	return nil
 }
 

@@ -1,34 +1,37 @@
 package profilego
 
 import (
-	"context"
 	"errors"
 
 	"dario.cat/mergo"
+	"github.com/go-playground/validator/v10"
 
 	"github.com/wasilak/profilego/config"
 	"github.com/wasilak/profilego/core"
 	"github.com/wasilak/profilego/manager"
-	"github.com/wasilak/profilego/profiler"
+	profiler_pkg "github.com/wasilak/profilego/profiler"
 )
 
-// Legacy Config struct for backward compatibility
+// Deprecated: Use config.Config instead. This legacy configuration struct is maintained for backward compatibility
+// but new code should use the more flexible config.Config struct with the new configuration format.
 type Config struct {
-	ApplicationName string            `json:"application_name"` // ApplicationName specifies the name of the application.
-	ServerAddress   string            `json:"server_address"`   // ServerAddress specifies the address of the profiling server.
-	Type            string            `json:"type"`             // Type specifies the type of profiler. Valid values are "pyroscope".
-	Tags            map[string]string `json:"tags"`             // Tags specifies the tags to be added to the profiler.
+	ApplicationName string            `json:"application_name" validate:"required"`  // ApplicationName specifies the name of the application.
+	ServerAddress   string            `json:"server_address"`                        // ServerAddress specifies the address of the profiling server.
+	Type            string            `json:"type" validate:"oneof=pyroscope pprof"` // Type specifies the type of profiler.
+	Tags            map[string]string `json:"tags"`                                  // Tags specifies the tags to be added to the profiler.
 }
 
-var defaultConfig = Config{
-	ApplicationName: "my-app",
-	ServerAddress:   "127.0.0.1:4040",
-	Type:            "pyroscope",
-	Tags:            map[string]string{},
-}
-
-// Legacy Init function for backward compatibility
+// Deprecated: Use InitWithConfig instead. This legacy function is maintained for backward compatibility
+// but new code should use the more flexible InitWithConfig function with the new configuration format.
 func Init(config Config, additionalAttrs ...any) error {
+	// Create a new validator instance
+	validate := validator.New()
+
+	// Validate the config
+	if err := validate.Struct(config); err != nil {
+		return err
+	}
+
 	// Convert legacy config to new format
 	newConfig := config.toNewConfig()
 
@@ -41,9 +44,9 @@ func Init(config Config, additionalAttrs ...any) error {
 // toNewConfig converts the legacy config to the new format
 func (c Config) toNewConfig() config.Config {
 	// Determine backend type based on the legacy type field
-	backendType := config.PyroscopeBackend
+	backendType := core.PyroscopeBackend
 	if c.Type == "pprof" {
-		backendType = config.PprofBackend
+		backendType = core.PprofBackend
 	}
 
 	return config.Config{
@@ -83,13 +86,13 @@ func InitWithConfig(cfg config.Config) error {
 	// Create and add the appropriate profiler
 	var profiler core.Profiler
 	switch cfg.Backend {
-	case config.PyroscopeBackend:
-		profiler, err = profiler.NewPyroscopeProfiler(cfg)
+	case core.PyroscopeBackend:
+		profiler, err = profiler_pkg.NewPyroscopeProfiler(cfg)
 		if err != nil {
 			return err
 		}
-	case config.PprofBackend:
-		profiler, err = profiler.NewPprofProfiler(cfg)
+	case core.PprofBackend:
+		profiler, err = profiler_pkg.NewPprofProfiler(cfg)
 		if err != nil {
 			return err
 		}

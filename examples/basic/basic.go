@@ -5,18 +5,25 @@ import (
 	"time"
 
 	"github.com/wasilak/profilego"
+	"github.com/wasilak/profilego/config"
+	"github.com/wasilak/profilego/core"
 )
 
 func main() {
-	// Initialize profiling with basic configuration (legacy API)
-	config := profilego.Config{
+	// BASIC EXAMPLE: Simple usage of the current API
+	// This demonstrates the minimal recommended way to use the library
+
+	// Initialize profiling with basic configuration
+	basicConfig := config.Config{
 		ApplicationName: "basic-example",
 		ServerAddress:   "localhost:4040",
-		Type:            "pyroscope",
+		Backend:         core.PyroscopeBackend,
 		Tags:            map[string]string{"version": "1.0.0"},
+		InitialState:    core.ProfilingEnabled,
 	}
 
-	err := profilego.Init(config)
+	// Using the current API
+	err := profilego.InitWithConfig(basicConfig)
 	if err != nil {
 		log.Fatalf("Failed to initialize profiling: %v", err)
 	}

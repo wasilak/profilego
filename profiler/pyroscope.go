@@ -2,8 +2,9 @@ package profiler
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
+	"log/slog"
+	"strings"
 	"sync"
 
 	"dario.cat/mergo"
@@ -12,33 +13,59 @@ import (
 	"github.com/wasilak/profilego/config"
 	"github.com/wasilak/profilego/core"
 	"github.com/wasilak/profilego/internal/memory"
-	"github.com/wasilak/profilego/profilingLogger"
 )
+
+// pyroscopeLogger implements the logging interface required by pyroscope library
+type pyroscopeLogger struct{}
+
+// Infof implements the pyroscope logger interface
+func (l pyroscopeLogger) Infof(msg string, params ...interface{}) {
+	message := l.handleMessage(msg)
+	slog.Info(message, params...)
+}
+
+// Debugf implements the pyroscope logger interface
+func (l pyroscopeLogger) Debugf(msg string, params ...interface{}) {
+	message := l.handleMessage(msg)
+	slog.Debug(message, params...)
+}
+
+// Errorf implements the pyroscope logger interface
+func (l pyroscopeLogger) Errorf(msg string, params ...interface{}) {
+	message := l.handleMessage(msg)
+	slog.Error(message, params...)
+}
+
+// handleMessage formats the log message
+func (l pyroscopeLogger) handleMessage(msg string) string {
+	message := strings.TrimSpace(msg)
+	messageElements := strings.Split(message, ":")
+	return fmt.Sprintf("profilego - %s", messageElements[0])
+}
 
 // PyroscopeProfiler implements the Profiler interface for Pyroscope
 type PyroscopeProfiler struct {
-	mu        sync.RWMutex
-	config    config.Config
-	profiler  *pyroscope.Profiler
-	running   bool
-	logger    profilingLogger.ProfilingLogger
+	mu       sync.RWMutex
+	config   config.Config
+	profiler *pyroscope.Profiler
+	running  bool
 }
 
 // NewPyroscopeProfiler creates a new Pyroscope profiler
 func NewPyroscopeProfiler(cfg config.Config) (*PyroscopeProfiler, error) {
-	logger := profilingLogger.ProfilingLogger{}
-	
-	// Merge defaults with provided config
-	err := mergo.Merge(&cfg, config.DefaultConfig, mergo.WithOverride)
+	// Start with defaults
+	finalConfig := config.DefaultConfig
+
+	// Then merge provided config values (they take precedence)
+	err := mergo.Merge(&finalConfig, cfg, mergo.WithOverride)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	pp := &PyroscopeProfiler{
-		config: cfg,
-		logger: logger,
+		config: finalConfig,
 	}
-	
+
 	return pp, nil
 }
 
@@ -73,12 +100,11 @@ func (pp *PyroscopeProfiler) Start(ctx context.Context) error {
 	}
 
 	pyroscopeConfig := pyroscope.Config{
-		Logger:          pp.logger,
+		Logger:          pyroscopeLogger{}, // Use logger specifically for pyroscope
 		ApplicationName: pp.config.ApplicationName,
 		ServerAddress:   pp.config.ServerAddress,
 		Tags:            pp.config.Tags,
 		ProfileTypes:    profileTypes,
-		DisableGCScan:   true, // To reduce overhead
 	}
 
 	// Configure TLS if enabled
@@ -106,16 +132,16 @@ func (pp *PyroscopeProfiler) Start(ctx context.Context) error {
 func (pp *PyroscopeProfiler) Stop(ctx context.Context) error {
 	pp.mu.Lock()
 	defer pp.mu.Unlock()
-	
+
 	if !pp.running || pp.profiler == nil {
 		return nil
 	}
-	
+
 	err := pp.profiler.Stop()
 	if err != nil {
 		return err
 	}
-	
+
 	pp.profiler = nil
 	pp.running = false
 	return nil
@@ -126,16 +152,16 @@ func (pp *PyroscopeProfiler) Pause(ctx context.Context) error {
 	// Pyroscope doesn't support pausing, so we stop and remember the state
 	pp.mu.Lock()
 	defer pp.mu.Unlock()
-	
+
 	if !pp.running || pp.profiler == nil {
 		return nil
 	}
-	
+
 	err := pp.profiler.Stop()
 	if err != nil {
 		return err
 	}
-	
+
 	pp.profiler = nil
 	pp.running = false
 	return nil
@@ -155,27 +181,27 @@ func (pp *PyroscopeProfiler) IsRunning() bool {
 }
 
 // convertProfileType converts internal profile type to pyroscope profile type
-func (pp *PyroscopeProfiler) convertProfileType(pt config.ProfileType) (pyroscope.ProfileType, bool) {
+func (pp *PyroscopeProfiler) convertProfileType(pt core.ProfileType) (pyroscope.ProfileType, bool) {
 	switch pt {
-	case config.ProfileCPU:
+	case core.ProfileCPU:
 		return pyroscope.ProfileCPU, true
-	case config.ProfileAllocObjects:
+	case core.ProfileAllocObjects:
 		return pyroscope.ProfileAllocObjects, true
-	case config.ProfileAllocSpace:
+	case core.ProfileAllocSpace:
 		return pyroscope.ProfileAllocSpace, true
-	case config.ProfileInuseObjects:
+	case core.ProfileInuseObjects:
 		return pyroscope.ProfileInuseObjects, true
-	case config.ProfileInuseSpace:
+	case core.ProfileInuseSpace:
 		return pyroscope.ProfileInuseSpace, true
-	case config.ProfileGoroutines:
+	case core.ProfileGoroutines:
 		return pyroscope.ProfileGoroutines, true
-	case config.ProfileMutexCount:
+	case core.ProfileMutexCount:
 		return pyroscope.ProfileMutexCount, true
-	case config.ProfileMutexDuration:
+	case core.ProfileMutexDuration:
 		return pyroscope.ProfileMutexDuration, true
-	case config.ProfileBlockCount:
+	case core.ProfileBlockCount:
 		return pyroscope.ProfileBlockCount, true
-	case config.ProfileBlockDuration:
+	case core.ProfileBlockDuration:
 		return pyroscope.ProfileBlockDuration, true
 	default:
 		return "", false

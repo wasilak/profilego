@@ -22,7 +22,7 @@ type ProfilerManager struct {
 // NewProfilerManager creates a new profiler manager
 func NewProfilerManager(cfg config.Config) *ProfilerManager {
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	return &ProfilerManager{
 		config:    cfg,
 		profilers: make(map[string]core.Profiler),
@@ -35,27 +35,27 @@ func NewProfilerManager(cfg config.Config) *ProfilerManager {
 func (pm *ProfilerManager) Init() error {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
-	
+
 	if err := pm.validateConfig(); err != nil {
 		return err
 	}
-	
+
 	// Create the appropriate profiler based on config
 	profiler, err := pm.createProfiler()
 	if err != nil {
 		return err
 	}
-	
+
 	name := profiler.Name()
 	pm.profilers[name] = profiler
-	
+
 	// Start the profiler if initial state is enabled
-	if pm.config.InitialState == config.ProfilingEnabled {
+	if pm.config.InitialState == core.ProfilingEnabled {
 		if err := profiler.Start(pm.ctx); err != nil {
 			return err
 		}
 	}
-	
+
 	pm.running = true
 	return nil
 }
@@ -64,17 +64,17 @@ func (pm *ProfilerManager) Init() error {
 func (pm *ProfilerManager) AddProfiler(profiler core.Profiler) error {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
-	
+
 	name := profiler.Name()
 	if _, exists := pm.profilers[name]; exists {
 		return &ManagerError{Operation: "AddProfiler", Message: "profiler with name " + name + " already exists"}
 	}
-	
+
 	pm.profilers[name] = profiler
-	if pm.running && pm.config.InitialState == config.ProfilingEnabled {
+	if pm.running && pm.config.InitialState == core.ProfilingEnabled {
 		return profiler.Start(pm.ctx)
 	}
-	
+
 	return nil
 }
 
@@ -82,13 +82,13 @@ func (pm *ProfilerManager) AddProfiler(profiler core.Profiler) error {
 func (pm *ProfilerManager) Start() error {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
-	
+
 	for name, profiler := range pm.profilers {
 		if err := profiler.Start(pm.ctx); err != nil {
 			return &ManagerError{Operation: "Start", Message: "failed to start profiler " + name + ": " + err.Error()}
 		}
 	}
-	
+
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	pm.running = true
@@ -99,21 +99,21 @@ func (pm *ProfilerManager) Start() error {
 func (pm *ProfilerManager) Stop() error {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
-	
+
 	var lastErr error
 	for name, profiler := range pm.profilers {
 		if err := profiler.Stop(pm.ctx); err != nil {
 			lastErr = &ManagerError{Operation: "Stop", Message: "failed to stop profiler " + name + ": " + err.Error()}
 		}
 	}
-	
+
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	pm.running = false
-	
+
 	// Cancel the context to signal all operations to stop
 	pm.cancel()
-	
+
 	return lastErr
 }
 
@@ -127,9 +127,9 @@ func (pm *ProfilerManager) IsRunning() bool {
 // createProfiler creates the appropriate profiler based on configuration
 func (pm *ProfilerManager) createProfiler() (core.Profiler, error) {
 	switch pm.config.Backend {
-	case config.PyroscopeBackend:
+	case core.PyroscopeBackend:
 		return pm.createPyroscopeProfiler()
-	case config.PprofBackend:
+	case core.PprofBackend:
 		return pm.createPprofProfiler()
 	default:
 		return nil, &ManagerError{Operation: "createProfiler", Message: "unsupported backend type: " + string(pm.config.Backend)}
@@ -141,11 +141,11 @@ func (pm *ProfilerManager) validateConfig() error {
 	if pm.config.ApplicationName == "" {
 		return &ManagerError{Operation: "validateConfig", Message: "application name not provided"}
 	}
-	
-	if pm.config.ServerAddress == "" && pm.config.Backend != config.PprofBackend {
+
+	if pm.config.ServerAddress == "" && pm.config.Backend != core.PprofBackend {
 		return &ManagerError{Operation: "validateConfig", Message: "server address not provided for backend: " + string(pm.config.Backend)}
 	}
-	
+
 	return nil
 }
 
