@@ -230,3 +230,4 @@ coverage.out
 .spec-workflow/specs
 .spec-workflow/archive
 .spec-workflow/approvals
+.zencoder

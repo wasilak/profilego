@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"time"
 
@@ -22,11 +23,12 @@ func main() {
 		InitialState:    core.ProfilingEnabled,
 	}
 
-	// Using the current API
-	err := profilego.InitWithConfig(basicConfig)
+	// Using the current API - get the context returned by init
+	ctx, err := profilego.InitWithConfig(context.Background(), basicConfig)
 	if err != nil {
 		log.Fatalf("Failed to initialize profiling: %v", err)
 	}
+	_ = ctx // Use context throughout your application
 
 	// Simulate some work
 	for i := 0; i < 10; i++ {

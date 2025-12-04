@@ -48,6 +48,11 @@ type Config struct {
 
 	// AdditionalAttrs specifies additional attributes for configuration merging
 	AdditionalAttrs []interface{} `json:"-" env:"-"`
+
+	// OTelTracerProvider optionally wraps a standard OTel TracerProvider
+	// Only used if Backend is PyroscopeBackend
+	// If provided, profilego will wrap it with Pyroscope integration and register it globally
+	OTelTracerProvider interface{} `json:"-" env:"-"`
 }
 
 // DefaultConfig provides sensible defaults

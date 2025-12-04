@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"time"
 
@@ -43,11 +44,12 @@ func main() {
 		},
 	}
 
-	// Initialize with advanced configuration
-	err := profilego.InitWithConfig(advancedConfig)
+	// Initialize with advanced configuration and retrieve the context
+	ctx, err := profilego.InitWithConfig(context.Background(), advancedConfig)
 	if err != nil {
 		log.Fatalf("Failed to initialize profiling: %v", err)
 	}
+	_ = ctx // Use context throughout your application
 
 	// Demonstrate advanced usage patterns
 	for i := 0; i < 15; i++ {

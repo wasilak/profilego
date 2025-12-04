@@ -124,6 +124,28 @@ func (pm *ProfilerManager) IsRunning() bool {
 	return pm.running
 }
 
+
+// AppName returns the application name from config
+func (pm *ProfilerManager) AppName() string {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+	return pm.config.ApplicationName
+}
+
+// ServerAddress returns the server address from config
+func (pm *ProfilerManager) ServerAddress() string {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+	return pm.config.ServerAddress
+}
+
+// Backend returns the backend type from config
+func (pm *ProfilerManager) Backend() core.BackendType {
+	pm.mu.RLock()
+	defer pm.mu.RUnlock()
+	return pm.config.Backend
+}
+
 // createProfiler creates the appropriate profiler based on configuration
 func (pm *ProfilerManager) createProfiler() (core.Profiler, error) {
 	switch pm.config.Backend {
