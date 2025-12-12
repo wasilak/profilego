@@ -4,7 +4,7 @@ go 1.24.0
 
 require (
 	dario.cat/mergo v1.0.2
-	github.com/go-playground/validator/v10 v10.28.0
+	github.com/go-playground/validator/v10 v10.29.0
 	github.com/grafana/otel-profiling-go v0.5.1
 	github.com/grafana/pyroscope-go v1.2.7
 	github.com/labstack/echo/v4 v4.13.4
